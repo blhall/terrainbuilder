@@ -199,21 +199,37 @@ Terrain* loadTerrain(float width, float height) {
       t->setHeight(x, y, h);
     }
   }
-
-  t->computeNormals();
   //Build Mountains
-  for(int y = 0; y < height; y++) {
-    for(int x = 0; x < width; x++) {
-      float h = (rand()%2)+1;
-      //t->setHeight(x, y, h);
+  //Point of Origin
+  //start at angle 1.0 loop through find x,y and setting height
+  //then add 1.0 to angle
+  float mHeight     = 20.0f;
+  float maxCurc     = 20.0f;
+  float centerX     = rand()%200;
+  float centerY     = rand()%200;
+  float h           = mHeight;
+
+  //printf ("%f,%f,%f\n", centerX,centerY,mHeight);
+  t->setHeight(centerX, centerY, mHeight); //Set cap
+  for(double mDistance = 1.0f; mDistance < maxCurc; mDistance += 1.0f) {
+    for(double mAngle = 1.0f; mAngle < 360; mAngle += 1.0f) {
+        float x = centerX + mDistance * cos(mAngle);
+        float y = centerY + mDistance * sin(mAngle);
+        //printf ("%f,%f,%f\n", x,y,h);
+        h = mHeight - mDistance;
+        if (h < 0) {
+          h = 0;
+        }
+        t->setHeight(x, y, h);
     }
   }
+      
+  //Build Rivers
   int numRivers = rand() % 3 + 1;
   printf ("Making %d rivers.\n", numRivers);
   for(int i = 0; i < numRivers; i++) {
     int riverAxis = rand() % 2 + 1;
     printf ("River Axis %d\n",riverAxis);
-    //Build Rivers
     if (riverAxis == 1) {
       float riverHeight = -5.0;
       int   riverStart  = rand() % 161 + 20;
@@ -248,6 +264,7 @@ Terrain* loadTerrain(float width, float height) {
     }
   }
 
+  t->computeNormals();
   return t;
 }
 
