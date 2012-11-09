@@ -210,14 +210,14 @@ Terrain* loadTerrain(float width, float height) {
 	}
   //Build Rivers
   float riverHeight = -5.0;
-  float riverStart = (rand()%100)+1;
-  float riverWidth = (rand()%5)+1;//
+  float riverStart = (rand()%150)+1;
+  float riverWidth = (rand()%20)+1;//
   float riverEnd = riverStart + riverWidth;
 
   for(int x = riverStart; x < riverEnd; x++) {
     for(double y = 0.0; y < height; y += 0.1) {
       double h = riverHeight;
-      double xr = 5*sin(.1*y) + 100;
+      double xr = 5*sin(.1*y) + riverStart;
 			t->setHeight(xr, y, h);
 		}
 	}
