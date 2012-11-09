@@ -24,6 +24,8 @@
 
 #include <iostream>
 #include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
 
 #ifdef __APPLE__
 #include <OpenGL/OpenGL.h>
@@ -32,7 +34,6 @@
 #include <GL/glut.h>
 #endif
 
-#include "imageloader.h"
 #include "vec3f.h"
 
 using namespace std;
@@ -190,6 +191,7 @@ class Terrain {
 //Loads a terrain from a heightmap.  The heights of the terrain range from
 //-height / 2 to height / 2.
 Terrain* loadTerrain(float width, float height) {
+  //Build basic terrain
 	Terrain* t = new Terrain(width, height);
 	for(int y = 0; y < height; y++) {
 		for(int x = 0; x < width; x++) {
@@ -197,8 +199,29 @@ Terrain* loadTerrain(float width, float height) {
 			t->setHeight(x, y, h);
 		}
 	}
-	
+
 	t->computeNormals();
+  //Build Mountains
+  for(int y = 0; y < height; y++) {
+		for(int x = 0; x < width; x++) {
+      float h = (rand()%2)+1;
+			//t->setHeight(x, y, h);
+		}
+	}
+  //Build Rivers
+  float riverHeight = -5.0;
+  float riverStart = (rand()%100)+1;
+  float riverWidth = (rand()%5)+1;//
+  float riverEnd = riverStart + riverWidth;
+
+  for(int x = riverStart; x < riverEnd; x++) {
+    for(double y = 0.0; y < height; y += 0.1) {
+      double h = riverHeight;
+      double xr = 5*sin(.1*y) + 100;
+			t->setHeight(xr, y, h);
+		}
+	}
+
 	return t;
 }
 
@@ -289,7 +312,7 @@ int main(int argc, char** argv) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 	glutInitWindowSize(400, 400);
 	
-	glutCreateWindow("Terrain - videotutorialsrock.com");
+	glutCreateWindow("TerrainBuilder");
 	initRendering();
 	
 	_terrain = loadTerrain(200,200);
@@ -302,12 +325,3 @@ int main(int argc, char** argv) {
 	glutMainLoop();
 	return 0;
 }
-
-
-
-
-
-
-
-
-
