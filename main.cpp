@@ -44,12 +44,23 @@ class Terrain {
     int w; //Width
     int l; //Length
     float** hs; //Heights
+    bool** ms; //Mountains
     Vec3f** normals;
     bool computedNormals; //Whether normals is up-to-date
   public:
     Terrain(int w2, int l2) {
       w = w2;
       l = l2;
+
+      //for(float il = 0.0f; il < l; il += 0.1f) {
+      //  for(float iw = 0.0f; iw < w; iw += 0.1f) {
+      //    ms[il][iw] = false;
+      //  }
+      //}
+      ms = new bool*[l];
+      for(int i = 0; i < l; i++) {
+        ms[i] = new bool[w];
+      }
 
       hs = new float*[l];
       for(int i = 0; i < l; i++) {
@@ -84,17 +95,74 @@ class Terrain {
       return l;
     }
 
+    //Set mountain
+    void setMountain(int x, int y) {
+      ms[x][y] = true;
+    }
+
+    //Return Mountain
+    bool isMountain(int x, int y) {
+      return ms[x][y];
+    }
+
     //Sets the height at (x, z) to y
-    void setHeight(int x, int z, float y) {
-      hs[z][x] = y;
-      computedNormals = false;
+    void setHeight(int x, int y, float z) {
+      if(x < w && y < l) {
+        hs[x][y] = z;
+        computedNormals = false;
+      }
     }
 
     //Returns the height at (x, z)
-    float getHeight(int x, int z) {
-      return hs[z][x];
+    float getHeight(int x, int y) {
+      return hs[x][y];
     }
 
+    float getMinHeight(int x, int y) {
+      // This will return the Min and Max height of surrounding points
+      float min = 1.0f;
+      float h;
+      for(int xa = -1; xa < 1; xa++) {
+        for(int ya = -1; ya < 1; ya++) {
+          float xh = x + xa;
+          float yh = y + ya;
+          if(xh < 0) {
+            xh = 0;
+          }
+          if (yh < 0) {
+            yh = 0;
+          }
+          h = getHeight(xh, yh);
+          if(h < min) {
+            min = h;
+          }
+        }
+      }
+      return min;
+    }
+
+    float getMaxHeight(int x, int y) {
+      // This will return the Min and Max height of surrounding points
+      float max = 1.0f;
+      int h;
+      for(int xa = -1; xa < 1; xa++) {
+        for(int ya = -1; ya < 1; ya++) {
+          float xh = x + xa;
+          float yh = y + ya;
+          if(xh < 0) {
+            xh = 0;
+          }
+          if (yh < 0) {
+            yh = 0;
+          }
+          h = getHeight(xh, yh);
+          if(h > max) {
+            max = h;
+          }
+        }
+      }
+      return max;
+    }
     //Computes the normals, if they haven't been computed yet
     void computeNormals() {
       if (computedNormals) {
@@ -188,85 +256,181 @@ class Terrain {
     }
 };
 
-//Loads a terrain from a heightmap.  The heights of the terrain range from
-//-height / 2 to height / 2.
-Terrain* loadTerrain(float width, float height) {
-  //Build basic terrain
-  Terrain* t = new Terrain(width, height);
-  for(int y = 0; y < height; y++) {
-    for(int x = 0; x < width; x++) {
-      float h = (rand()%2)+1;
-      t->setHeight(x, y, h);
+void buildTerrain(Terrain* t) {
+  float min,max;
+  for(int y = 0; y < t->length(); y++) {
+    for(int x = 0; x < t->width(); x++) {
+      min = t->getMinHeight(x,y) * 0.5f;
+      max = t->getMaxHeight(x,y) * 1.5f;
+      float h = min + (float)rand()/((float)RAND_MAX/(max-min));
+      //printf ("Max= %f, Min= %f, H= %f\n", max,min,h);
+
+
+      t->setHeight(x,y,h); //Center
     }
   }
+}
+
+void squareStep(Terrain* t, int xStart, int yStart, int d, float height) {
+  d--;
+  int xMax = d;
+  int yMax = d;
+  int xCenter = xMax/2;
+  int yCenter = yMax/2;
+  int min = -height;
+  int max = height;
+  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
+  t->setHeight(xStart,yStart,h); //Lower Left
+  t->setHeight(xStart,yMax,h); //Upper Left
+  t->setHeight(xMax,yStart,h); //Lower Right
+  t->setHeight(xMax,yMax,h); //Upper Right
+  h = h + 1;
+  t->setHeight(xCenter, yCenter, h); //Center
+};
+
+void diamondStep(Terrain* t, int xStart, int yStart, int d, float height) { 
+  d--;
+  int xMax = d/2;
+  int yMax = d/2;
+  int xCenter = xMax/2;
+  int yCenter = yMax/2;
+  int min = -height;
+  int max = height;
+  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
+  t->setHeight(xMax/2,yStart,h); //Bottom
+  t->setHeight(xStart,yMax/2,h); //Left
+  t->setHeight(xMax/2,yMax,h); //Top
+  t->setHeight(xMax,yMax/2,h); //Right
+  h = h + 1;
+  t->setHeight(xCenter, yCenter, h); //Center}
+};
+
+void buildRiver(Terrain* t) {
+  //Build River
+  int riverAxis = rand() % 2 + 1;
+  printf ("River Axis %d\n",riverAxis);
+  if (riverAxis == 1) {
+    float riverHeight = -5.0;
+    int   riverStart  = rand() % 161 + 20;
+    int   riverWidth  = rand() % 16 + 6;
+    int   riverAmp    = rand() % 9 + 2;
+    double riverCycle  = (rand()% 10 + 1) * .01;
+    int   riverEnd    = riverStart + riverWidth;
+
+    printf ("riverAmp = %d riverCycle = %f\n", riverAmp, riverCycle);
+    for(int x = riverStart; x < riverEnd; x++) {
+      for(double y = 0.0; y < t->length(); y += 0.1) {
+        double xr = riverAmp * sin(riverCycle * y) + riverStart;
+        t->setHeight(xr, y, riverHeight);
+      }
+    } 
+  }
+  else if (riverAxis == 2) {
+    float riverHeight = -5.0;
+    int   riverStart  = rand() % 161 + 20;
+    int   riverWidth  = rand() % 16 + 6;
+    int   riverAmp    = rand() % 9 + 2;
+    double riverCycle  = (rand()% 10 + 1) * .01;
+    int   riverEnd    = riverStart + riverWidth;
+
+    printf ("riverAmp = %d riverCycle = %f\n", riverAmp, riverCycle);
+    for(double x = 0.0; x < t->width(); x += 0.1) {
+      for(int y = riverStart; y < riverEnd; y++) {
+        double yr = riverAmp * sin(riverCycle * x) + riverStart;
+        t->setHeight(x, yr, riverHeight);
+      }
+    }
+  }
+};
+
+void buildMountain(Terrain* t) {
   //Build Mountains
   //Point of Origin
   //start at angle 1.0 loop through find x,y and setting height
   //then add 1.0 to angle
   float mHeight     = 20.0f;
   float maxCurc     = 20.0f;
-  float centerX     = rand()%200;
-  float centerY     = rand()%200;
+  int   centerX     = (int)(rand()/(RAND_MAX/(t->width()-maxCurc)));
+  int   centerY     = (int)(rand()/(RAND_MAX/(t->length()-maxCurc)));
   float h           = mHeight;
 
   //printf ("%f,%f,%f\n", centerX,centerY,mHeight);
   t->setHeight(centerX, centerY, mHeight); //Set cap
   for(double mDistance = 1.0f; mDistance < maxCurc; mDistance += 1.0f) {
     for(double mAngle = 1.0f; mAngle < 360; mAngle += 1.0f) {
-        float x = centerX + mDistance * cos(mAngle);
-        float y = centerY + mDistance * sin(mAngle);
-        //printf ("%f,%f,%f\n", x,y,h);
-        h = mHeight - mDistance;
-        if (h < 0) {
-          h = 0;
-        }
-        t->setHeight(x, y, h);
-    }
-  }
-      
-  //Build Rivers
-  int numRivers = rand() % 3 + 1;
-  printf ("Making %d rivers.\n", numRivers);
-  for(int i = 0; i < numRivers; i++) {
-    int riverAxis = rand() % 2 + 1;
-    printf ("River Axis %d\n",riverAxis);
-    if (riverAxis == 1) {
-      float riverHeight = -5.0;
-      int   riverStart  = rand() % 161 + 20;
-      int   riverWidth  = rand() % 16 + 6;
-      int   riverAmp    = rand() % 9 + 2;
-      double riverCycle  = (rand()% 10 + 1) * .01;
-      int   riverEnd    = riverStart + riverWidth;
-
-      printf ("riverAmp = %d riverCycle = %f\n", riverAmp, riverCycle);
-      for(int x = riverStart; x < riverEnd; x++) {
-        for(double y = 0.0; y < height; y += 0.1) {
-          double xr = riverAmp * sin(riverCycle * y) + riverStart;
-          t->setHeight(xr, y, riverHeight);
-        }
-      } 
-    }
-    else if (riverAxis == 2) {
-      float riverHeight = -5.0;
-      int   riverStart  = rand() % 161 + 20;
-      int   riverWidth  = rand() % 16 + 6;
-      int   riverAmp    = rand() % 9 + 2;
-      double riverCycle  = (rand()% 10 + 1) * .01;
-      int   riverEnd    = riverStart + riverWidth;
-
-      printf ("riverAmp = %d riverCycle = %f\n", riverAmp, riverCycle);
-      for(double x = 0.0; x < width; x += 0.1) {
-        for(int y = riverStart; y < riverEnd; y++) {
-          double yr = riverAmp * sin(riverCycle * x) + riverStart;
-          t->setHeight(x, yr, riverHeight);
+      int x = (int)(centerX + mDistance * cos(mAngle));
+      int y = (int)(centerY + mDistance * sin(mAngle));
+      //printf ("%f,%f,%f\n", x,y,h);
+      h = mHeight - mDistance;
+      if (h < 0) {
+        h = 0;
+      }
+      if(y > 0 && y < t->length()) {
+        if(x > 0 && x < t->width()) {
+          if(!t->isMountain(x,y)) {
+            t->setHeight(x, y, h);
+            t->setMountain(x,y);
+          }
+          else {
+            float eh = t->getHeight(x,y);
+            eh = ((h + eh) * .5f);
+            t->setHeight(x, y, eh);
+          }
         }
       }
     }
+  }
+};
+
+//Loads a terrain from a heightmap.  The heights of the terrain range from
+//-height / 2 to height / 2.
+Terrain* loadTerrain(float width, float length) {
+  //Build basic terrain
+  Terrain* t = new Terrain(width, length);
+  for(int y = 0; y < length; y++) {
+    for(int x = 0; x < width; x++) {
+      float min = -2.0f;
+      float max =  3.0f;
+      float h = 1.0f;//min + (float)rand()/((float)RAND_MAX/(max-min));
+      t->setHeight(x, y, h);
+    }
+  }
+
+  //squareStep(Terrain* t, int xStart, int yStart, int d, float height)
+  int d = 20;
+  int h = 10;
+  //for(int x = 0; x < 20; x++) {
+    //for(int y = 0; y < 20; y++) {
+      squareStep( t, 5, 5, d, h);
+      diamondStep(t, 5, 5, d, h);
+      d--;
+      h--;
+    //}
+  //}
+
+  int numMount = rand() % 20 + 1;
+  printf ("Making %d mountains.\n", numMount);
+  for(int i = 0; i < numMount; i++) {
+    //buildMountain(t);
+  }
+
+  int numRivers = rand() % 3 + 1;
+  printf ("Making %d rivers.\n", numRivers);
+  for(int i = 0; i < numRivers; i++) {
+    //buildRiver(t);
+  }
+
+  int terPasses = 20;
+  printf ("Generating terrain.\n");
+  for (int i = 0; i < terPasses; i++) {
+    //buildTerrain(t);
   }
 
   t->computeNormals();
   return t;
 }
+
+
 
 float _angle = 60.0f;
 Terrain* _terrain;
@@ -353,12 +517,12 @@ void update(int value) {
 int main(int argc, char** argv) {
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-  glutInitWindowSize(400, 400);
+  glutInitWindowSize(200, 200);
 
   glutCreateWindow("TerrainBuilder");
   initRendering();
 
-  _terrain = loadTerrain(200,200);
+  _terrain = loadTerrain(100,100);
 
   glutDisplayFunc(drawScene);
   glutKeyboardFunc(handleKeypress);
