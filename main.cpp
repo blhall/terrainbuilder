@@ -108,7 +108,7 @@ class Terrain {
     //Sets the height at (x, z) to y
     void setHeight(int x, int y, float z) {
       if(x < w && y < l) {
-        printf ("%d,%d\n", x,y);
+        //printf ("%d,%d\n", x,y);
         hs[x][y] = z;
         computedNormals = false;
       }
@@ -278,7 +278,7 @@ void squareStep(Terrain* t, int xStart, int yStart, int d, float height) {
   int yCenter = (yStart + yMax)/2;
   int min = -height;
   int max = height;
-  float h = height;//min + (float)rand()/((float)RAND_MAX/(max-min));
+  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
   t->setHeight(xStart,yStart,h); //Lower Left
   t->setHeight(xStart,yMax,h); //Upper Left
   t->setHeight(xMax,yStart,h); //Lower Right
@@ -295,7 +295,7 @@ void diamondStep(Terrain* t, int xStart, int yStart, int d, float height) {
   int yCenter = (yStart + yMax)/2;
   int min = -height;
   int max = height;
-  float h = height; //min + (float)rand()/((float)RAND_MAX/(max-min));
+  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
   t->setHeight(xMax-xStart,yStart,h); //Bottom
   t->setHeight(xMax-xStart,yMax,h); //Top
 
@@ -397,18 +397,18 @@ Terrain* loadTerrain(float width, float length) {
   }
 
   //squareStep(Terrain* t, int xStart, int yStart, int d, float height)
-  int d = 10;
-  int h = 10;
-  //for(int x = 0; x < 20; x++) {
-    //for(int y = 0; y < 20; y++) {
-    printf("Starting Squares\n");
-      squareStep( t, 5, 5, d, h);
-    printf("Starting Diamonds\n");
-      diamondStep(t, 5, 5, d, h);
-      d--;
-      h--;
-    //}
-  //}
+  int d = 4;
+  int h = 3;
+  for(int x = 0; x < t->length(); x += d) {
+    for(int y = 0; y < t->width(); y += d) {
+    //printf("Starting Squares\n");
+      squareStep( t, x, y, d, h);
+    //printf("Starting Diamonds\n");
+      diamondStep(t, x, y, d, h);
+      //d--;
+      //h--;
+    }
+  }
 
   int numMount = rand() % 20 + 1;
   printf ("Making %d mountains.\n", numMount);
