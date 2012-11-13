@@ -1,31 +1,9 @@
-/* Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above notice and this permission notice shall be included in all copies
- * or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-/* File for "Terrain" lesson of the OpenGL tutorial on
- * www.videotutorialsrock.com
- */
-
-
-
 #include <iostream>
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <queue>
+#include <vector>
 
 #ifdef __APPLE__
 #include <OpenGL/OpenGL.h>
@@ -38,35 +16,45 @@
 
 using namespace std;
 
-//Represents a terrain, by storing a set of heights and normals at 2D locations
-class Terrain {
+struct Tile {
+  float nw;
+  float ne;
+  float sw;
+  float se;
+};
+
+class HeightMap {
   private:
-    int w; //Width
-    int l; //Length
-    float** hs; //Heights
-    bool** ms; //Mountains
+    int size;
+    int center_cell;
+    float high_value;
+    float low_value;
+    int mid_value;
+    float** map;
+    int l;
+    int w;
+    bool computedNormals;
     Vec3f** normals;
-    bool computedNormals; //Whether normals is up-to-date
   public:
-    Terrain(int w2, int l2) {
-      w = w2;
-      l = l2;
+    HeightMap(int sze, float hv, float lv) {
+      printf("Initializing Height Map\n");
+      size = sze;
+      l = size;
+      w = size;
+      high_value = hv;
+      low_value = lv;
+      mid_value = floor((low_value + high_value) / 2);
+      center_cell = floor(size / 2);
 
-      //for(float il = 0.0f; il < l; il += 0.1f) {
-      //  for(float iw = 0.0f; iw < w; iw += 0.1f) {
-      //    ms[il][iw] = false;
-      //  }
-      //}
-      ms = new bool*[l];
+      printf("Map %d \n", l);
+      map = new float*[l];
+      //printf("Map2\n");
       for(int i = 0; i < l; i++) {
-        ms[i] = new bool[w];
+        //printf("Map %d \n", i);
+        map[i] = new float[w];
       }
 
-      hs = new float*[l];
-      for(int i = 0; i < l; i++) {
-        hs[i] = new float[w];
-      }
-
+      //printf("Vec3f\n");
       normals = new Vec3f*[l];
       for(int i = 0; i < l; i++) {
         normals[i] = new Vec3f[w];
@@ -75,96 +63,203 @@ class Terrain {
       computedNormals = false;
     }
 
-    ~Terrain() {
-      for(int i = 0; i < l; i++) {
-        delete[] hs[i];
-      }
-      delete[] hs;
+    struct Point {
+      int left;
+      int top;
+      int right;
+      int bottom;
+      float height;
+    };
 
-      for(int i = 0; i < l; i++) {
-        delete[] normals[i];
-      }
-      delete[] normals;
+    queue<Point> jobs;
+
+    int getSize() {
+      return size;
     }
 
     int width() {
-      return w;
+      return size;
     }
 
     int length() {
-      return l;
+      return size;
     }
 
-    //Set mountain
-    void setMountain(int x, int y) {
-      ms[x][y] = true;
+    float getCell(int x, int y) {
+      return map[x][y];
     }
 
-    //Return Mountain
-    bool isMountain(int x, int y) {
-      return ms[x][y];
-    }
-
-    //Sets the height at (x, z) to y
-    void setHeight(int x, int y, float z) {
-      if(x < w && y < l) {
-        //printf ("%d,%d\n", x,y);
-        hs[x][y] = z;
-        computedNormals = false;
-      }
-    }
-
-    //Returns the height at (x, z)
     float getHeight(int x, int y) {
-      return hs[x][y];
+      return map[x][y];
     }
 
-    float getMinHeight(int x, int y) {
-      // This will return the Min and Max height of surrounding points
-      float min = 1.0f;
-      float h;
-      for(int xa = -1; xa < 1; xa++) {
-        for(int ya = -1; ya < 1; ya++) {
-          float xh = x + xa;
-          float yh = y + ya;
-          if(xh < 0) {
-            xh = 0;
-          }
-          if (yh < 0) {
-            yh = 0;
-          }
-          h = getHeight(xh, yh);
-          if(h < min) {
-            min = h;
-          }
-        }
-      }
-      return min;
+    int CenterCell() {
+      return center_cell;
     }
 
-    float getMaxHeight(int x, int y) {
-      // This will return the Min and Max height of surrounding points
-      float max = 1.0f;
-      int h;
-      for(int xa = -1; xa < 1; xa++) {
-        for(int ya = -1; ya < 1; ya++) {
-          float xh = x + xa;
-          float yh = y + ya;
-          if(xh < 0) {
-            xh = 0;
-          }
-          if (yh < 0) {
-            yh = 0;
-          }
-          h = getHeight(xh, yh);
-          if(h > max) {
-            max = h;
-          }
-        }
-      }
-      return max;
+    float highValue() {
+      return high_value;
     }
-    //Computes the normals, if they haven't been computed yet
+
+    float lowValue() {
+      return low_value;
+    }
+
+    int midValue() {
+      return mid_value;
+    }
+
+    void setCell(int x, int y, float h) {
+      map[x][y] = h;
+    }
+
+    void setNW(float h) {
+      setCell(0, 0, h);
+    }
+
+    void setNE(float h) {
+      setCell(0, getSize() - 1, h);
+    }
+
+    void setSW(float h) {
+      setCell(getSize() - 1, 0, h);
+    }
+
+    void setSE(float h) {
+      setCell(getSize() - 1, getSize() - 1, h);
+    }
+
+    void setCenter(float h) {
+      setCell(center_cell, center_cell, h);
+    }
+
+    bool isMountain(int x, int y) {
+      return true;
+    }
+    void setMountain(int x, int y) {
+    }
+
+    Tile getTile(int x, int y) {
+      Tile mytile;
+      mytile.nw = getCell(x,   y  );
+      mytile.ne = getCell(x+1, y  );
+      mytile.sw = getCell(x,   y+1);
+      mytile.se = getCell(x+1, y+1);
+
+      return mytile;
+    }
+    
+    void cleanUp() {
+      printf("Running Cleanup\n");
+      //Initialize array
+
+      //Clear job queue
+      while(!this->jobs.empty()) {
+        this->jobs.pop();
+      }
+
+      printf("Jobs Clear.\n");
+
+      setNW(midValue());
+      setNE(midValue());
+      setSW(midValue());
+      setSE(midValue());
+
+      Point mypoint;
+
+      mypoint.left = 0;
+      mypoint.top = 0;
+      mypoint.right = getSize() - 1;
+      mypoint.bottom = getSize() - 1;
+      mypoint.height = midValue();
+      this->jobs.push(mypoint);
+      printf("Finished cleaning\n");
+    }
+
+    void run() {
+      while(!this->jobs.empty()) {
+       // printf("Stepping\n");
+        step();
+      }
+      printf("Done stepping\n");
+      return;
+    }
+
+    void step() {
+      //Take top of queue off and process it
+      Point mypoint = this->jobs.front();
+      diamond_square(
+          mypoint.left,
+          mypoint.top, 
+          mypoint.right, 
+          mypoint.bottom, 
+          mypoint.height
+          );
+      this->jobs.pop();
+      printf("Job queue at:%d\n", this->jobs.size());
+    }
+
+    void diamond_square(int left, int top, int right, int bottom, float base_height) {
+      int x_center = floor((left + right) / 2);
+      int y_center = floor((top + bottom) / 2);
+
+      float center_point_height = ((
+            getCell(left, top) +
+            getCell(right, top) +
+            getCell(left, bottom) +
+            getCell(right, bottom)
+            ) / 4
+          ) - (floor( rand() - 0.5) * base_height * 2);
+
+      if(center_point_height < 0) {
+        center_point_height = -center_point_height;
+      }
+
+      setCell(x_center, y_center, center_point_height);
+
+      setCell(x_center, top,    floor(getCell(left, top)   + getCell(right, top   ) / 2 + ((rand() - 0.5) * base_height)));
+      setCell(x_center, bottom, floor(getCell(left, bottom)+ getCell(right, bottom) / 2 + ((rand() - 0.5) * base_height)));
+      setCell(left, y_center,   floor(getCell(left, top)   + getCell(left,  bottom) / 2 + ((rand() - 0.5) * base_height)));
+      setCell(right, y_center,  floor(getCell(right, top)  + getCell(right, bottom) / 2 + ((rand() - 0.5) * base_height)));
+
+      if(right - left > 2) {
+        base_height = floor(pow(base_height, 2.0) - 0.75);
+        printf ("New base height %f\n", base_height);
+        Point mypoint;          
+        
+        //diamond_square(left, top, x_center, y_center, base_height ));
+        mypoint.left = left;
+        mypoint.top = top;
+        mypoint.right = x_center;
+        mypoint.bottom = y_center;
+        mypoint.height = base_height;
+        this->jobs.push(mypoint);
+        
+        //diamond_square(x_center, top, right, y_center, base_height));
+        mypoint.left = x_center;
+        mypoint.top = top;
+        mypoint.right = right;
+        mypoint.bottom = y_center;
+        mypoint.height = base_height;
+        this->jobs.push(mypoint);
+        
+        //diamond_square(left, y_center, x_center, bottom, base_height));
+        mypoint.left = left;
+        mypoint.top = y_center;
+        mypoint.right = x_center;
+        mypoint.bottom = bottom;
+        mypoint.height = base_height;
+        this->jobs.push(mypoint);
+        
+        //diamond_square(x_center, y_center, right, bottom, base_height));
+        mypoint.left = x_center;
+        mypoint.top = y_center;
+        mypoint.right = right;
+        mypoint.bottom = bottom;
+        mypoint.height = base_height;
+        this->jobs.push(mypoint);
+      }
+    }
     void computeNormals() {
       if (computedNormals) {
         return;
@@ -182,19 +277,19 @@ class Terrain {
 
           Vec3f out;
           if (z > 0) {
-            out = Vec3f(0.0f, hs[z - 1][x] - hs[z][x], -1.0f);
+            out = Vec3f(0.0f, map[z - 1][x] - map[z][x], -1.0f);
           }
           Vec3f in;
           if (z < l - 1) {
-            in = Vec3f(0.0f, hs[z + 1][x] - hs[z][x], 1.0f);
+            in = Vec3f(0.0f, map[z + 1][x] - map[z][x], 1.0f);
           }
           Vec3f left;
           if (x > 0) {
-            left = Vec3f(-1.0f, hs[z][x - 1] - hs[z][x], 0.0f);
+            left = Vec3f(-1.0f, map[z][x - 1] - map[z][x], 0.0f);
           }
           Vec3f right;
           if (x < w - 1) {
-            right = Vec3f(1.0f, hs[z][x + 1] - hs[z][x], 0.0f);
+            right = Vec3f(1.0f, map[z][x + 1] - map[z][x], 0.0f);
           }
 
           if (x > 0 && z > 0) {
@@ -247,7 +342,6 @@ class Terrain {
 
       computedNormals = true;
     }
-
     //Returns the normal at (x, z)
     Vec3f getNormal(int x, int z) {
       if (!computedNormals) {
@@ -256,56 +350,21 @@ class Terrain {
       return normals[z][x];
     }
 };
-
-void buildTerrain(Terrain* t) {
-  float min,max;
-  for(int y = 0; y < t->length(); y++) {
-    for(int x = 0; x < t->width(); x++) {
-      min = t->getMinHeight(x,y) * 0.5f;
-      max = t->getMaxHeight(x,y) * 1.5f;
-      float h = min + (float)rand()/((float)RAND_MAX/(max-min));
-      //printf ("Max= %f, Min= %f, H= %f\n", max,min,h);
-      t->setHeight(x,y,h); //Center
-    }
-  }
-}
-
-void squareStep(Terrain* t, int xStart, int yStart, int d, float height) {
-  //d--;
-  int xMax = (xStart) + d;
-  int yMax = (yStart) + d;
-  int xCenter = (xStart + xMax)/2;
-  int yCenter = (yStart + yMax)/2;
-  int min = -height;
-  int max = height;
-  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
-  t->setHeight(xStart,yStart,h); //Lower Left
-  t->setHeight(xStart,yMax,h); //Upper Left
-  t->setHeight(xMax,yStart,h); //Lower Right
-  t->setHeight(xMax,yMax,h); //Upper Right
-  h = h + 1;
-  t->setHeight(xCenter, yCenter, h); //Center
+//Loads a terrain from a heightmap.  The heights of the terrain range from
+//-height / 2 to height / 2.
+HeightMap* loadMap(int n) {
+  int size = (pow(2,n)+1);
+  int h_value = 3;
+  int l_value = 1;
+  HeightMap* t = new HeightMap(size, h_value, l_value);
+  t->cleanUp();
+  t->run();
+  printf("Returning\n");
+  //t->computeNormals();
+  return t;
 };
 
-void diamondStep(Terrain* t, int xStart, int yStart, int d, float height) { 
-  //d--;
-  int xMax = (xStart + d);
-  int yMax = (yStart + d);
-  int xCenter = (xStart + xMax)/2;
-  int yCenter = (yStart + yMax)/2;
-  int min = -height;
-  int max = height;
-  float h = min + (float)rand()/((float)RAND_MAX/(max-min));
-  t->setHeight(xMax-xStart,yStart,h); //Bottom
-  t->setHeight(xMax-xStart,yMax,h); //Top
-
-  t->setHeight(xStart,yMax - yStart,h); //Left
-  t->setHeight(xMax,yMax - yStart,h); //Right
-  h = h + 1;
-  t->setHeight(xCenter, yCenter, h); //Center}
-};
-
-void buildRiver(Terrain* t) {
+void buildRiver(HeightMap* t) {
   //Build River
   int riverAxis = rand() % 2 + 1;
   printf ("River Axis %d\n",riverAxis);
@@ -321,7 +380,7 @@ void buildRiver(Terrain* t) {
     for(int x = riverStart; x < riverEnd; x++) {
       for(double y = 0.0; y < t->length(); y += 0.1) {
         double xr = riverAmp * sin(riverCycle * y) + riverStart;
-        t->setHeight(xr, y, riverHeight);
+        t->setCell(xr, y, riverHeight);
       }
     } 
   }
@@ -337,13 +396,13 @@ void buildRiver(Terrain* t) {
     for(double x = 0.0; x < t->width(); x += 0.1) {
       for(int y = riverStart; y < riverEnd; y++) {
         double yr = riverAmp * sin(riverCycle * x) + riverStart;
-        t->setHeight(x, yr, riverHeight);
+        t->setCell(x, yr, riverHeight);
       }
     }
   }
 };
 
-void buildMountain(Terrain* t) {
+void buildMountain(HeightMap* t) {
   //Build Mountains
   //Point of Origin
   //start at angle 1.0 loop through find x,y and setting height
@@ -355,7 +414,7 @@ void buildMountain(Terrain* t) {
   float h           = mHeight;
 
   //printf ("%f,%f,%f\n", centerX,centerY,mHeight);
-  t->setHeight(centerX, centerY, mHeight); //Set cap
+  t->setCell(centerX, centerY, mHeight); //Set cap
   for(double mDistance = 1.0f; mDistance < maxCurc; mDistance += 1.0f) {
     for(double mAngle = 1.0f; mAngle < 360; mAngle += 1.0f) {
       int x = (int)(centerX + mDistance * cos(mAngle));
@@ -368,13 +427,13 @@ void buildMountain(Terrain* t) {
       if(y > 0 && y < t->length()) {
         if(x > 0 && x < t->width()) {
           if(!t->isMountain(x,y)) {
-            t->setHeight(x, y, h);
+            t->setCell(x, y, h);
             t->setMountain(x,y);
           }
           else {
             float eh = t->getHeight(x,y);
             eh = ((h + eh) * .5f);
-            t->setHeight(x, y, eh);
+            t->setCell(x, y, eh);
           }
         }
       }
@@ -382,34 +441,7 @@ void buildMountain(Terrain* t) {
   }
 };
 
-//Loads a terrain from a heightmap.  The heights of the terrain range from
-//-height / 2 to height / 2.
-Terrain* loadTerrain(float width, float length) {
-  //Build basic terrain
-  Terrain* t = new Terrain(width, length);
-  for(int y = 0; y < length; y++) {
-    for(int x = 0; x < width; x++) {
-      float min = -2.0f;
-      float max =  3.0f;
-      float h = 1.0f;//min + (float)rand()/((float)RAND_MAX/(max-min));
-      t->setHeight(x, y, h);
-    }
-  }
-
-  //squareStep(Terrain* t, int xStart, int yStart, int d, float height)
-  int d = 4;
-  int h = 3;
-  for(int x = 0; x < t->length(); x += d) {
-    for(int y = 0; y < t->width(); y += d) {
-    //printf("Starting Squares\n");
-      squareStep( t, x, y, d, h);
-    //printf("Starting Diamonds\n");
-      diamondStep(t, x, y, d, h);
-      //d--;
-      //h--;
-    }
-  }
-
+void old() {
   int numMount = rand() % 20 + 1;
   printf ("Making %d mountains.\n", numMount);
   for(int i = 0; i < numMount; i++) {
@@ -428,16 +460,17 @@ Terrain* loadTerrain(float width, float length) {
     //buildTerrain(t);
   }
 
-  t->computeNormals();
-  return t;
+  //t->computeNormals();
+  //return t;
 }
 
 
 
 float _angle = 60.0f;
-Terrain* _terrain;
+HeightMap* _terrain;
 
 void cleanup() {
+  printf("Deleting terrain\n");
   delete _terrain;
 }
 
@@ -465,6 +498,43 @@ void handleResize(int w, int h) {
   gluPerspective(45.0, (double)w / (double)h, 1.0, 200.0);
 }
 
+
+
+void draw_triangle(int x, int y) {
+  //printf("Drawing triangle %d,%d\n", x, y);
+
+  int nwx = x;
+  int nwy = y;
+  int nex = x + 1;
+  int ney = y;
+  int sex = x + 1;
+  int sey = y + 1;
+  int swx = x;
+  int swy = y + 1;
+  int centerx = floor((nwx+sex)/2);
+  int centery = floor((nwy+sey)/2);
+  
+  //Previous was (X, Y, Z);
+  //Begin first Triangle
+  //Draw the tile as two polygons, a polygon for the back triangle, NW -> NE -> SW -> NW
+  //
+  //NW->NE->CENTER
+  glVertex3f(nwx, nwy, _terrain->getCell(nwx,nwy));
+  glVertex3f(nex, ney, _terrain->getCell(nex,ney));
+  glVertex3f(centerx, centery, _terrain->getCell(centerx,centery));
+  //NE->SE->CENTER
+  glVertex3f(nex, ney, _terrain->getCell(nex,ney));
+  glVertex3f(sex, sey, _terrain->getCell(sex,sey));
+  glVertex3f(centerx, centery, _terrain->getCell(centerx,centery));
+  //SE->SW->CENTER
+  glVertex3f(sex, sey, _terrain->getCell(sex,sey));
+  glVertex3f(swx, swy, _terrain->getCell(swx,swy));
+  glVertex3f(centerx, centery, _terrain->getCell(centerx,centery));
+  //SW->NW->CENTER
+  glVertex3f(swx, swy, _terrain->getCell(swx,swy));
+  glVertex3f(nwx, nwy, _terrain->getCell(nwx,nwy));
+  glVertex3f(centerx, centery, _terrain->getCell(centerx,centery));
+}
 void drawScene() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -489,46 +559,43 @@ void drawScene() {
       -(float)(_terrain->length() - 1) / 2);
 
   glColor3f(0.3f, 0.9f, 0.0f);
-  for(int z = 0; z < _terrain->length() - 1; z++) {
-    //Makes OpenGL draw a triangle at every three consecutive vertices
+  for(int y = 0; y < _terrain->length() - 1; y++) {
     glBegin(GL_TRIANGLE_STRIP);
-    for(int x = 0; x < _terrain->width(); x++) {
-      Vec3f normal = _terrain->getNormal(x, z);
-      glNormal3f(normal[0], normal[1], normal[2]);
-      glVertex3f(x, _terrain->getHeight(x, z), z);
-      normal = _terrain->getNormal(x, z + 1);
-      glNormal3f(normal[0], normal[1], normal[2]);
-      glVertex3f(x, _terrain->getHeight(x, z + 1), z + 1);
+    for(int x = 0; x < _terrain->width() - 1; x++) {
+      draw_triangle(x,y);
     }
     glEnd();
   }
+  //printf("Done drawing\n");
 
   glutSwapBuffers();
 }
-
 void update(int value) {
+  //printf("Updating\n");
   _angle += 1.0f;
   if (_angle > 360) {
     _angle -= 360;
   }
-
   glutPostRedisplay();
   glutTimerFunc(25, update, 0);
 }
-
 int main(int argc, char** argv) {
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-  glutInitWindowSize(200, 200);
+  glutInitWindowSize(500, 500);
 
   glutCreateWindow("TerrainBuilder");
   initRendering();
 
-  _terrain = loadTerrain(100,100);
+  _terrain = loadMap(4);
 
+  printf("Draw scene\n");
   glutDisplayFunc(drawScene);
+  printf("KeyPress\n");
   glutKeyboardFunc(handleKeypress);
+  printf("handleResize\n");
   glutReshapeFunc(handleResize);
+  printf("Update Call\n");
   glutTimerFunc(25, update, 0);
 
   glutMainLoop();
