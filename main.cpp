@@ -359,8 +359,8 @@ class HeightMap {
 //-height / 2 to height / 2.
 HeightMap* loadMap(int n) {
   int size = (pow(2,n)+1);
-  int h_value = 2;
-  int l_value = 1;
+  float h_value = 1.0f;
+  float l_value = 0.0f;
   HeightMap* t = new HeightMap(size, h_value, l_value);
   t->cleanUp();
   t->run();
